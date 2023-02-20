@@ -1328,6 +1328,18 @@ class Trainer:
                 with torch.no_grad():
                     jit_model(**example_batch)
                     jit_model(**example_batch)
+                    print("jit graph")
+                    print(jit_model.graph_for(**example_batch))
+                    g = jit_model.graph_for(**example_batch)
+                    
+                    sys.path.insert(0, os.path.abspath('/home/sdp/chunyuan/transformers/examples/pytorch/language-modeling'))
+                    from utils_vis import draw
+                    dot_g = draw(g)
+                    f = open("gpt-j-6B_graph.dot",'w')
+                    f.write(dot_g.source)
+
+
+
                 model = jit_model
                 self.use_cpu_amp = False
                 self.use_cuda_amp = False

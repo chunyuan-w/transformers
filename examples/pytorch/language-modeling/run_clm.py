@@ -361,6 +361,7 @@ def main():
         "cache_dir": model_args.cache_dir,
         "revision": model_args.model_revision,
         "use_auth_token": True if model_args.use_auth_token else None,
+        "return_dict": False,
     }
     if model_args.config_name:
         config = AutoConfig.from_pretrained(model_args.config_name, **config_kwargs)
@@ -558,7 +559,8 @@ def main():
         if training_args.do_eval and not is_torch_tpu_available()
         else None,
     )
-
+    print("print model")
+    print(model)
     # Training
     if training_args.do_train:
         checkpoint = None
