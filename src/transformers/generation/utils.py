@@ -2732,16 +2732,20 @@ class GenerationMixin:
             example={}
             example["input_ids"] = model_inputs["input_ids"]
             #4,32  4,33  
-            example["position_ids"] = model_inputs["position_ids"]
             example["attention_mask"] = model_inputs["attention_mask"]
             print("#" * 50)
             print("attention_mask ", example["attention_mask"].shape)
-            # print("past_key_values ", example["past_key_values"])
             
             print("has attention_mask", "attention_mask" in model_inputs)
-            print("has past_key_values", "past_key_values" in model_inputs)
+            
+            if model_inputs["past_key_values"] is not None:
+                print("past_key_values shape", len(model_inputs["past_key_values"]))
+            else:
+                print("past_key_values is None")
             print("output_attentions ", output_attentions)
             print("output_hidden_states", output_hidden_states)
+            
+            
             if not hasattr(self,"trace_graph"):
                 self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
                 self_jit = torch.jit.freeze(self_jit.eval())
@@ -2750,11 +2754,30 @@ class GenerationMixin:
 
 
             
-            outputs = self.trace_graph(**example)
+            # outputs = self.trace_graph(**example)
+            # if synced_gpus and this_peer_finished:
+            #     cur_len = cur_len + 1
+            #     continue  # don't waste resources running the code we don't need
+            # next_token_logits = outputs[0][:, -1, :]
+
+            
+
+
+
+            outputs = self(
+                **model_inputs,
+                return_dict=True,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+            )
+
             if synced_gpus and this_peer_finished:
                 cur_len = cur_len + 1
                 continue  # don't waste resources running the code we don't need
-            next_token_logits = outputs[0][:, -1, :]
+
+            next_token_logits = outputs.logits[:, -1, :]
+
+
 
             # hack: adjust tokens for Marian. For Marian we have to make sure that the `pad_token_id`
             # cannot be generated both before and after the `nn.functional.log_softmax` operation.
