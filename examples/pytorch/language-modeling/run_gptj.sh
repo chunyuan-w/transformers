@@ -1,0 +1,1 @@
+numactl --physcpubind=0-55  --membind=0  python -u run_gptj.py --precision int8 --max-new-tokens 32 --num-iter 10 --num-warmup 3 --generation --performance
