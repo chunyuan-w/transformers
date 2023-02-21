@@ -674,7 +674,10 @@ class GenerationMixin:
         return input_ids, model_kwargs
 
     def _extract_past_from_model_output(self, outputs: ModelOutput, standardize_cache_format: bool = False):
+        # print("output keys: ", outputs.keys())
         past_key_values = None
+        # TODO：past_key_values is lost here. But this line makes acc worse
+        # past_key_values = outputs[1]
         if "past_key_values" in outputs:
             past_key_values = outputs.past_key_values
         elif "mems" in outputs:
@@ -2734,6 +2737,7 @@ class GenerationMixin:
             #4,32  4,33  
             example["attention_mask"] = model_inputs["attention_mask"]
             example["past_key_values"] = model_inputs["past_key_values"]
+            example["position_ids"] = model_inputs["position_ids"]
             print("#" * 50)
             print("attention_mask ", example["attention_mask"].shape)
             
@@ -2773,18 +2777,18 @@ class GenerationMixin:
 
                 if not hasattr(self,"trace_graph"):
                     print("trace me")
-                    print(example.keys())
                     # print(example)
                     # import pdb
                     # pdb.set_trace()
 
                     # self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
-                    self_jit = torch.jit.trace(self, example_inputs, strict=False)
+                    self_jit = torch.jit.trace(self.eval(), example_inputs, strict=False)
                     self_jit = torch.jit.freeze(self_jit.eval())
                     setattr(self, "trace_graph", self_jit)
                     print("#####trace done")
 
 
+                print("keys: ", example.keys())
                 
                 outputs = self.trace_graph(*example_inputs)
                 if synced_gpus and this_peer_finished:
