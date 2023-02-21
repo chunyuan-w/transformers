@@ -187,6 +187,26 @@ class GPTJAttention(nn.Module):
 
         return attn_output, attn_weights
 
+    # @torch.jit.ignore
+    def calculate_offset(self, layer_past,  offset, seq_len):
+        if layer_past is not None:
+            offset = layer_past[0].shape[-2]
+            seq_len += offset
+            return offset, seq_len
+        else:
+            return offset, seq_len
+    
+    # @torch.jit.ignore
+    def prepare_key_value(self, layer_past, key, value):
+        if layer_past is not None:
+            past_key = layer_past[0]
+            past_value = layer_past[1]
+            key = torch.cat((past_key, key), dim=-2)
+            value = torch.cat((past_value, value), dim=-2)
+            return key, value
+        else:
+            return key, value
+
     def forward(
         self,
         hidden_states: Optional[torch.FloatTensor],
@@ -210,9 +230,10 @@ class GPTJAttention(nn.Module):
         seq_len = key.shape[1]
         offset = 0
 
-        if layer_past is not None:
-            offset = layer_past[0].shape[-2]
-            seq_len += offset
+        # if layer_past is not None:
+            # offset = layer_past[0].shape[-2]
+            # seq_len += offset
+        offset, seq_len = self.calculate_offset(layer_past, offset, seq_len)
 
         if self.rotary_dim is not None:
             k_rot = key[:, :, :, : self.rotary_dim]
@@ -235,11 +256,13 @@ class GPTJAttention(nn.Module):
         key = key.permute(0, 2, 1, 3)
         query = query.permute(0, 2, 1, 3)
 
-        if layer_past is not None:
-            past_key = layer_past[0]
-            past_value = layer_past[1]
-            key = torch.cat((past_key, key), dim=-2)
-            value = torch.cat((past_value, value), dim=-2)
+        # if layer_past is not None:
+        #     past_key = layer_past[0]
+        #     past_value = layer_past[1]
+        #     key = torch.cat((past_key, key), dim=-2)
+        #     value = torch.cat((past_value, value), dim=-2)
+
+        key, value = self.prepare_key_value(layer_past, key, value)
 
         if use_cache is True:
             present = (key, value)
@@ -536,6 +559,15 @@ class GPTJModel(GPTJPreTrainedModel):
     def set_input_embeddings(self, new_embeddings):
         self.wte = new_embeddings
 
+    # @torch.jit.ignore
+    def get_past_key_values(self, past_key_values):
+        if past_key_values is None:
+            past_length = 0
+            past_key_values = tuple([None] * len(self.h))
+        else:
+            past_length = past_key_values[0][0].size(-2)
+        return past_length, past_key_values    
+
     @add_start_docstrings_to_model_forward(GPTJ_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
         checkpoint=_CHECKPOINT_FOR_DOC,
@@ -584,11 +616,14 @@ class GPTJModel(GPTJPreTrainedModel):
         if position_ids is not None:
             position_ids = position_ids.view(-1, input_shape[-1])
 
-        if past_key_values is None:
-            past_length = 0
-            past_key_values = tuple([None] * len(self.h))
-        else:
-            past_length = past_key_values[0][0].size(-2)
+        # if past_key_values is None:
+        #     past_length = 0
+        #     past_key_values = tuple([None] * len(self.h))
+        # else:
+        #     past_length = past_key_values[0][0].size(-2)
+
+
+        past_length, past_key_values = self.get_past_key_values(past_key_values)
 
         if position_ids is None:
             position_ids = torch.arange(past_length, input_shape[-1] + past_length, dtype=torch.long, device=device)
@@ -810,9 +845,9 @@ class GPTJForCausalLM(GPTJPreTrainedModel):
         self,
         input_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
+        position_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.FloatTensor] = None,
         token_type_ids: Optional[torch.LongTensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,

@@ -2733,6 +2733,7 @@ class GenerationMixin:
             example["input_ids"] = model_inputs["input_ids"]
             #4,32  4,33  
             example["attention_mask"] = model_inputs["attention_mask"]
+            example["past_key_values"] = model_inputs["past_key_values"]
             print("#" * 50)
             print("attention_mask ", example["attention_mask"].shape)
             
@@ -2746,11 +2747,60 @@ class GenerationMixin:
             print("output_hidden_states", output_hidden_states)
             
             
-            if not hasattr(self,"trace_graph"):
-                self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
-                self_jit = torch.jit.freeze(self_jit.eval())
-                setattr(self, "trace_graph", self_jit)
-                print("#####trace done")     
+            if model_inputs["past_key_values"] is None:
+                outputs = self(
+                    **model_inputs,
+                    return_dict=True,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                )
+
+                if synced_gpus and this_peer_finished:
+                    cur_len = cur_len + 1
+                    continue  # don't waste resources running the code we don't need
+
+                next_token_logits = outputs.logits[:, -1, :]
+            else:
+
+
+                example_inputs = []
+                for k,v in model_inputs.items():
+                    if v is not None and not isinstance(v, bool):
+                    # if v is not None:
+                        print('k:', k)
+                        example_inputs.append(v)
+                example_inputs = tuple(example_inputs)
+
+                if not hasattr(self,"trace_graph"):
+                    print("trace me")
+                    print(example.keys())
+                    # print(example)
+                    # import pdb
+                    # pdb.set_trace()
+
+                    # self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
+                    self_jit = torch.jit.trace(self, example_inputs, strict=False)
+                    self_jit = torch.jit.freeze(self_jit.eval())
+                    setattr(self, "trace_graph", self_jit)
+                    print("#####trace done")
+
+
+                
+                outputs = self.trace_graph(*example_inputs)
+                if synced_gpus and this_peer_finished:
+                    cur_len = cur_len + 1
+                    continue  # don't waste resources running the code we don't need
+                next_token_logits = outputs[0][:, -1, :]
+
+            
+
+            # if not hasattr(self,"trace_graph"):
+            #     self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False, check_trace = False)
+            #     self_jit = torch.jit.freeze(self_jit.eval())
+            #     setattr(self, "trace_graph", self_jit)
+            #     self_jit(**example)
+            #     print(self_jit.graph_for(**example))
+            #     print("#####trace done")
 
 
             
@@ -2760,22 +2810,22 @@ class GenerationMixin:
             #     continue  # don't waste resources running the code we don't need
             # next_token_logits = outputs[0][:, -1, :]
 
-            
 
 
 
-            outputs = self(
-                **model_inputs,
-                return_dict=True,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-            )
 
-            if synced_gpus and this_peer_finished:
-                cur_len = cur_len + 1
-                continue  # don't waste resources running the code we don't need
+            # outputs = self(
+            #     **model_inputs,
+            #     return_dict=True,
+            #     output_attentions=output_attentions,
+            #     output_hidden_states=output_hidden_states,
+            # )
 
-            next_token_logits = outputs.logits[:, -1, :]
+            # if synced_gpus and this_peer_finished:
+            #     cur_len = cur_len + 1
+            #     continue  # don't waste resources running the code we don't need
+
+            # next_token_logits = outputs.logits[:, -1, :]
 
 
 
