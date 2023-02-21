@@ -193,7 +193,7 @@ class GPTJAttention(nn.Module):
         attention_mask: Optional[torch.FloatTensor] = None,
         layer_past: Optional[Tuple[torch.Tensor]] = None,
         head_mask: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = False,
+        use_cache: Optional[bool] = True,
         output_attentions: Optional[bool] = False,
     ) -> Union[
         Tuple[torch.Tensor, Tuple[torch.Tensor]],
@@ -256,7 +256,9 @@ class GPTJAttention(nn.Module):
         outputs = (attn_output, present)
         if output_attentions:
             outputs += (attn_weights,)
-
+        # print("outputs:", outputs)
+        # print("attn_output:", attn_output)
+        # print("present:", present)
         return outputs  # a, present, (attentions)
 
 
@@ -279,6 +281,18 @@ class GPTJMLP(nn.Module):
         return hidden_states
 
 
+def my_print(x):
+    if x is not None:
+        if isinstance(x, tuple):
+            print("len s", len(x))
+            for t in x:
+                print("t shape in x")
+                print(t.shape) 
+        else:
+            print(x.shape)
+    else:
+        print("is None")
+
 class GPTJBlock(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -296,19 +310,42 @@ class GPTJBlock(nn.Module):
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
+        print("enter GPTJBlock")
+        print("layer_past None:", layer_past is None)
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
-        attn_outputs = self.attn(
-            hidden_states,
-            layer_past=layer_past,
-            attention_mask=attention_mask,
-            head_mask=head_mask,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-        )
+        
+        # print("hidden shape:", hidden_states.shape)
+        # print("layer_past")
+        # my_print(layer_past)
+        # print("attention_mask")
+        # my_print(attention_mask)
+        # print("head_mask")
+        # my_print(head_mask)
+        # print("use_cache:", use_cache)
+        # print("output_attentions:",output_attentions)
+        
+        if layer_past is None:
+            attn_outputs = self.attn(
+                hidden_states,
+                layer_past=layer_past,
+                attention_mask=attention_mask,
+                head_mask=head_mask,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+            )
+        else:
+            attn_outputs = self.attn_trace(
+                hidden_states,
+                layer_past=layer_past,
+                attention_mask=attention_mask,
+                # head_mask=head_mask,
+                # use_cache=use_cache,
+                # output_attentions=output_attentions,
+            )            
         attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
-
+        # print("hidden shape:", hidden_states.shape)
         feed_forward_hidden_states = self.mlp(hidden_states)
         hidden_states = attn_output + feed_forward_hidden_states + residual
 

@@ -45,19 +45,27 @@ if args.use_dynamo:
     model.generate = torch.compile(model.generate, backend='ipex', dynamic=True)
 
 def my_trace(module_list):
-    out = []
-    for m in module_list:
-        print(m.mlp.fc_in)
-        m.mlp = torch.jit.trace(m.mlp, torch.randn(4, 32, 4096))
-        m.mlp = torch.jit.freeze(m.mlp)
-        out.append(m)
-    return torch.nn.ModuleList(out)
+    with torch.cpu.amp.autocast(enabled=amp_enabled, dtype=amp_dtype):
+        out = []
+        for m in module_list:
+            print(m.mlp.fc_in)
+            m.mlp = torch.jit.trace(m.mlp, torch.randn(4, 32, 4096))
+            m.mlp = torch.jit.freeze(m.mlp)
+            
+            
+            m.attn_trace = torch.jit.trace(m.attn, (torch.randn(4, 1, 4096), torch.randn(4, 1, 1, 62), (torch.randn(4, 16, 61, 256), torch.randn(4, 16, 61, 256))))
+
+            
+            out.append(m)
+        return torch.nn.ModuleList(out)
 
 # to ipex
 if args.use_ipex_optimize_api:
     if args.use_dynamo:
         assert(False, "ipex.optimize can be applied to the dynamo optimized model")
-    # model = ipex.optimize(model, dtype=amp_dtype, inplace=True)
+    # TODO: ipex.optimize does not work when trying to trace mlp
+    model = ipex.optimize(model, dtype=amp_dtype, inplace=True)
+    print(model)
     model.transformer.h = my_trace(model.transformer.h)
 
     print("Memory usage after  ipex.optimize:", process.memory_info().rss/1024/1024/1024, "GB", flush=True)

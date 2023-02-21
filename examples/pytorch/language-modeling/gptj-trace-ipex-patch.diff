@@ -1,0 +1,13 @@
+diff --git a/intel_extension_for_pytorch/nn/utils/_weight_prepack.py b/intel_extension_for_pytorch/nn/utils/_weight_prepack.py
+index 2f0ee9db..18695f2b 100644
+--- a/intel_extension_for_pytorch/nn/utils/_weight_prepack.py
++++ b/intel_extension_for_pytorch/nn/utils/_weight_prepack.py
+@@ -290,7 +290,7 @@ class _IPEXConvTranspose3d(_IPEXConvTransposeNd):
+         super(_IPEXConvTranspose3d, self).__init__(dense_module)
+ 
+ IPEX_WEIGHT_PREPACK_MODULE_CPU = {
+-    torch.nn.Linear: _IPEXLinear,
++    # torch.nn.Linear: _IPEXLinear,
+     torch.nn.Conv2d: _IPEXConv2d,
+     torch.nn.Conv3d: _IPEXConv3d,
+     torch.nn.Conv1d: _IPEXConv1d,
