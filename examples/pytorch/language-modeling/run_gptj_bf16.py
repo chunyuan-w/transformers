@@ -43,11 +43,23 @@ model = model.to(memory_format=torch.channels_last)
 print("Memory usage for stock pytorch model:", process.memory_info().rss/1024/1024/1024, "GB", flush=True)
 if args.use_dynamo:
     model.generate = torch.compile(model.generate, backend='ipex', dynamic=True)
+
+def my_trace(module_list):
+    out = []
+    for m in module_list:
+        print(m.mlp.fc_in)
+        m.mlp = torch.jit.trace(m.mlp, torch.randn(4, 32, 4096))
+        m.mlp = torch.jit.freeze(m.mlp)
+        out.append(m)
+    return torch.nn.ModuleList(out)
+
 # to ipex
 if args.use_ipex_optimize_api:
     if args.use_dynamo:
         assert(False, "ipex.optimize can be applied to the dynamo optimized model")
-    model = ipex.optimize(model, dtype=amp_dtype, inplace=True)
+    # model = ipex.optimize(model, dtype=amp_dtype, inplace=True)
+    model.transformer.h = my_trace(model.transformer.h)
+
     print("Memory usage after  ipex.optimize:", process.memory_info().rss/1024/1024/1024, "GB", flush=True)
 # input prompt
 # prompt = "Once upon a time,"
