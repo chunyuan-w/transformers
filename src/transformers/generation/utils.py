@@ -2725,7 +2725,7 @@ class GenerationMixin:
                     break
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
-
+            # print("run forward")
             outputs = self(
                 **model_inputs,
                 return_dict=True,

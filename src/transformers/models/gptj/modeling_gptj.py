@@ -310,8 +310,8 @@ class GPTJBlock(nn.Module):
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
     ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
-        print("enter GPTJBlock")
-        print("layer_past None:", layer_past is None)
+        # print("enter GPTJBlock")
+        # print("layer_past None:", layer_past is None)
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
         
