@@ -2734,14 +2734,10 @@ class GenerationMixin:
             #4,32  4,33  
             example["position_ids"] = model_inputs["position_ids"]
             example["attention_mask"] = model_inputs["attention_mask"]
-            print("#" * 50)
-            print("attention_mask ", example["attention_mask"].shape)
+            # print("#" * 50)
+            # print("attention_mask ", example["attention_mask"].shape)
             # print("past_key_values ", example["past_key_values"])
             
-            print("has attention_mask", "attention_mask" in model_inputs)
-            print("has past_key_values", "past_key_values" in model_inputs)
-            print("output_attentions ", output_attentions)
-            print("output_hidden_states", output_hidden_states)
             if not hasattr(self,"trace_graph"):
                 self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
                 self_jit = torch.jit.freeze(self_jit.eval())
