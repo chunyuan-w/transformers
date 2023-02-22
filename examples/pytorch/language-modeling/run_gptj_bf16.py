@@ -56,7 +56,7 @@ prompt = "Once upon a time, there existed a little girl, who liked to have adven
          " She wanted to go to places and meet new people, and have fun."
 # start
 total_time = 0.0
-num_iter = 1
+num_iter = 10
 num_warmup = 2
 def trace_handler(prof):
     print(prof.key_averages().table(
