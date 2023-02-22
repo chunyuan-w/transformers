@@ -675,6 +675,8 @@ class GenerationMixin:
 
     def _extract_past_from_model_output(self, outputs: ModelOutput, standardize_cache_format: bool = False):
         past_key_values = None
+        # To use torch.jit.trace, the output is no longer a Dict. outputs[1] corresponds to "past_key_values"
+        past_key_values = outputs[1]
         if "past_key_values" in outputs:
             past_key_values = outputs.past_key_values
         elif "mems" in outputs:
@@ -2726,21 +2728,36 @@ class GenerationMixin:
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
-            example={}
-            example["input_ids"] = model_inputs["input_ids"]
-            example["position_ids"] = model_inputs["position_ids"]
-            example["attention_mask"] = model_inputs["attention_mask"]
-            
-            if not hasattr(self,"trace_graph"):
-                self_jit = torch.jit.trace(self, example_kwarg_inputs={key: example[key] for key in example}, strict=False)
-                self_jit = torch.jit.freeze(self_jit.eval())
-                setattr(self, "trace_graph", self_jit)
-            
-            outputs = self.trace_graph(**example)
-            if synced_gpus and this_peer_finished:
-                cur_len = cur_len + 1
-                continue  # don't waste resources running the code we don't need
-            next_token_logits = outputs[0][:, -1, :]
+            if model_inputs["past_key_values"] is None:
+                outputs = self(
+                    **model_inputs,
+                    return_dict=True,
+                    output_attentions=output_attentions,
+                    output_hidden_states=output_hidden_states,
+                )
+                if synced_gpus and this_peer_finished:
+                    cur_len = cur_len + 1
+                    continue  # don't waste resources running the code we don't need
+
+                next_token_logits = outputs.logits[:, -1, :]
+
+            else:
+                example_inputs = []
+                for k, v in model_inputs.items():
+                    if v is not None and not isinstance(v, bool):
+                        example_inputs.append(v)
+                example_inputs = tuple(example_inputs)                
+                
+                if not hasattr(self,"trace_graph"):
+                    self_jit = torch.jit.trace(self, example_inputs, strict=False)
+                    self_jit = torch.jit.freeze(self_jit.eval())
+                    setattr(self, "trace_graph", self_jit)
+
+                outputs = self.trace_graph(*example_inputs)
+                if synced_gpus and this_peer_finished:
+                    cur_len = cur_len + 1
+                    continue  # don't waste resources running the code we don't need
+                next_token_logits = outputs[0][:, -1, :]
 
             # hack: adjust tokens for Marian. For Marian we have to make sure that the `pad_token_id`
             # cannot be generated both before and after the `nn.functional.log_softmax` operation.
